@@ -15,7 +15,7 @@ const int DRIVER_DISABLED = HIGH;
 
 // Steps per revolution (depends on your microstepping setup)
 // Example: 200 steps/rev * 16 microsteps = 3200
-const int stepsPerRevolution = 800;
+const int stepsPerRevolution = 200;
 
 void setup() {
   pinMode(MOTOR1_STEP_PIN, OUTPUT);
@@ -51,11 +51,11 @@ void runMotor(int stepPin, int dirPin, int enablePin,
 
   digitalWrite(dirPin, HIGH);
   rotateOneRevolution(stepPin);
-  delay(500);
+  delay(1000);
 
   digitalWrite(dirPin, LOW);
   rotateOneRevolution(stepPin);
-  delay(500);
+  delay(1000);
 
   digitalWrite(enablePin, DRIVER_DISABLED);
   delay(10);
@@ -64,7 +64,7 @@ void runMotor(int stepPin, int dirPin, int enablePin,
 void rotateOneRevolution(int stepPin) {
   for (int i = 0; i < stepsPerRevolution; i++) {
     digitalWrite(stepPin, HIGH);
-    delayMicroseconds(1600);  // Adjust for speed (higher = slower)
+    delayMicroseconds(1000);  // Adjust for speed (higher = slower)
     digitalWrite(stepPin, LOW);
     delayMicroseconds(100);
   }
