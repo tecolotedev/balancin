@@ -51,11 +51,11 @@ void runMotor(int stepPin, int dirPin, int enablePin,
 
   digitalWrite(dirPin, HIGH);
   rotateOneRevolution(stepPin);
-  delay(1000);
+  delay(100);
 
   digitalWrite(dirPin, LOW);
   rotateOneRevolution(stepPin);
-  delay(1000);
+  delay(100);
 
   digitalWrite(enablePin, DRIVER_DISABLED);
   delay(10);
