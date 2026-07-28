@@ -26,6 +26,12 @@ constexpr uint8_t REGISTER_WHO_AM_I = 0x75;
 constexpr float ACCEL_SCALE = 16384.0f;
 constexpr float GYRO_SCALE = 131.0f;
 
+// A lower value follows the accelerometer more closely; a higher value relies
+// more on the gyroscope. This value gives a smooth but responsive tilt angle.
+constexpr float ORIENTATION_TIME_CONSTANT_SECONDS = 0.5f;
+constexpr float MAX_ORIENTATION_INTERVAL_SECONDS = 0.25f;
+constexpr float RADIANS_TO_DEGREES = 180.0f / PI;
+
 enum class SensorModel {
   UNKNOWN,
   MPU6050,
@@ -35,6 +41,12 @@ enum class SensorModel {
 bool sensorReady = false;
 uint8_t sensorAddress = IMU_ADDRESS_LOW;
 SensorModel sensorModel = SensorModel::UNKNOWN;
+
+bool orientationInitialized = false;
+uint32_t lastOrientationUpdateMicros = 0;
+float rollDegrees = 0.0f;
+float pitchDegrees = 0.0f;
+float yawDegrees = 0.0f;
 
 const char* sensorModelName() {
   switch (sensorModel) {
@@ -114,11 +126,75 @@ float convertTemperatureToCelsius(int16_t rawTemperature) {
   return (rawTemperature / 340.0f) + 36.53f;
 }
 
+float wrapAngle(float angleDegrees) {
+  while (angleDegrees > 180.0f) {
+    angleDegrees -= 360.0f;
+  }
+
+  while (angleDegrees <= -180.0f) {
+    angleDegrees += 360.0f;
+  }
+
+  return angleDegrees;
+}
+
+void updateOrientation(MPU6050Data& data) {
+  // Gravity provides roll and pitch references, but cannot provide yaw.
+  const float accelerometerRollDegrees =
+      atan2f(data.accelerationYG, data.accelerationZG) * RADIANS_TO_DEGREES;
+  const float accelerometerPitchDegrees =
+      atan2f(-data.accelerationXG,
+             sqrtf(data.accelerationYG * data.accelerationYG +
+                   data.accelerationZG * data.accelerationZG)) *
+      RADIANS_TO_DEGREES;
+
+  const uint32_t nowMicros = micros();
+
+  if (!orientationInitialized) {
+    rollDegrees = accelerometerRollDegrees;
+    pitchDegrees = accelerometerPitchDegrees;
+    yawDegrees = 0.0f;
+    orientationInitialized = true;
+  } else {
+    const float elapsedSeconds =
+        (nowMicros - lastOrientationUpdateMicros) / 1000000.0f;
+
+    if (elapsedSeconds > 0.0f &&
+        elapsedSeconds <= MAX_ORIENTATION_INTERVAL_SECONDS) {
+      const float gyroRollDegrees =
+          rollDegrees + data.gyroXDegreesPerSecond * elapsedSeconds;
+      const float gyroPitchDegrees =
+          pitchDegrees + data.gyroYDegreesPerSecond * elapsedSeconds;
+      const float filterWeight = ORIENTATION_TIME_CONSTANT_SECONDS /
+          (ORIENTATION_TIME_CONSTANT_SECONDS + elapsedSeconds);
+
+      rollDegrees = filterWeight * gyroRollDegrees +
+          (1.0f - filterWeight) * accelerometerRollDegrees;
+      pitchDegrees = filterWeight * gyroPitchDegrees +
+          (1.0f - filterWeight) * accelerometerPitchDegrees;
+      yawDegrees = wrapAngle(
+          yawDegrees + data.gyroZDegreesPerSecond * elapsedSeconds);
+    } else {
+      // A long blocking delay means rotation was not sampled continuously.
+      // Reinitialize tilt from gravity and avoid reporting a misleading yaw.
+      rollDegrees = accelerometerRollDegrees;
+      pitchDegrees = accelerometerPitchDegrees;
+      yawDegrees = 0.0f;
+    }
+  }
+
+  lastOrientationUpdateMicros = nowMicros;
+  data.rollDegrees = rollDegrees;
+  data.pitchDegrees = pitchDegrees;
+  data.yawDegrees = yawDegrees;
+}
+
 }  // namespace
 
 bool setupMPU6050Sensor() {
   sensorReady = false;
   sensorModel = SensorModel::UNKNOWN;
+  orientationInitialized = false;
 
   if (!Wire.begin(IMU_SDA_PIN, IMU_SCL_PIN, IMU_I2C_FREQUENCY_HZ)) {
     Serial.println("Could not start the I2C bus.");
@@ -182,11 +258,12 @@ bool readMPU6050(MPU6050Data& data) {
   data.accelerationYG = rawAccelerationY / ACCEL_SCALE;
   data.accelerationZG = rawAccelerationZ / ACCEL_SCALE;
 
-  data.gyroXDegreesPerSecond = rawGyroX / GYRO_SCALE;
-  data.gyroYDegreesPerSecond = rawGyroY / GYRO_SCALE;
-  data.gyroZDegreesPerSecond = rawGyroZ / GYRO_SCALE;
+  // data.gyroXDegreesPerSecond = rawGyroX / GYRO_SCALE;
+  // data.gyroYDegreesPerSecond = rawGyroY / GYRO_SCALE;
+  // data.gyroZDegreesPerSecond = rawGyroZ / GYRO_SCALE;
 
   data.temperatureC = convertTemperatureToCelsius(rawTemperature);
+  updateOrientation(data);
   return true;
 }
 
@@ -205,14 +282,21 @@ void printMPU6050Data() {
   Serial.print(" Z:");
   Serial.print(data.accelerationZG, 3);
 
-  Serial.print(" | Gyro [deg/s] X:");
-  Serial.print(data.gyroXDegreesPerSecond, 2);
-  Serial.print(" Y:");
-  Serial.print(data.gyroYDegreesPerSecond, 2);
-  Serial.print(" Z:");
-  Serial.print(data.gyroZDegreesPerSecond, 2);
+  // Serial.print(" | Gyro [deg/s] X:");
+  // Serial.print(data.gyroXDegreesPerSecond, 2);
+  // Serial.print(" Y:");
+  // Serial.print(data.gyroYDegreesPerSecond, 2);
+  // Serial.print(" Z:");
+  // Serial.print(data.gyroZDegreesPerSecond, 2);
 
-  Serial.print(" | Temp:");
-  Serial.print(data.temperatureC, 1);
-  Serial.println(" C");
+  // Serial.print(" | Temp:");
+  // Serial.print(data.temperatureC, 1);
+  // Serial.print(" C");
+
+  // Serial.print(" | Angles [deg] Roll:");
+  // Serial.print(data.rollDegrees, 1);
+  // Serial.print(" Pitch:");
+  // Serial.print(data.pitchDegrees, 1);
+  // Serial.print(" Yaw(relative):");
+  // Serial.println(data.yawDegrees, 1);
 }
