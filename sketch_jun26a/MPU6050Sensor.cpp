@@ -280,7 +280,7 @@ void printMPU6050Data() {
   Serial.print(" Y:");
   Serial.print(data.accelerationYG, 3);
   Serial.print(" Z:");
-  Serial.print(data.accelerationZG, 3);
+  Serial.println(data.accelerationZG, 3);
 
   // Serial.print(" | Gyro [deg/s] X:");
   // Serial.print(data.gyroXDegreesPerSecond, 2);
