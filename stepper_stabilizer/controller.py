@@ -31,7 +31,7 @@ class PidConfig:
     kd: float = 0.10
     integral_limit: float = 0.50
     output_limit: float = 1.0
-    dead_band_g: float = 0.10
+    dead_band_g: float = 0.15
     fast_low_delay_seconds: float = 0.0025
     slow_low_delay_seconds: float = 0.015
 
