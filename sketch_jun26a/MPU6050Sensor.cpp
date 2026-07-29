@@ -229,21 +229,24 @@ bool setupMPU6050Sensor() {
   return true;
 }
 
-bool readMPU6050(MPU6050Data& data) {
+MPU6050Data readMPU6050() {
+  MPU6050Data data{};
+  data.accelerationXG = NAN;
+
   if (!sensorReady) {
-    return false;
+    return data;
   }
 
   Wire.beginTransmission(sensorAddress);
   Wire.write(REGISTER_ACCEL_XOUT_H);
 
   if (Wire.endTransmission(false) != 0) {
-    return false;
+    return data;
   }
 
   constexpr size_t BYTES_TO_READ = 14;
   if (Wire.requestFrom(sensorAddress, BYTES_TO_READ, true) != BYTES_TO_READ) {
-    return false;
+    return data;
   }
 
   const int16_t rawAccelerationX = readSignedWord();
@@ -258,47 +261,12 @@ bool readMPU6050(MPU6050Data& data) {
   data.accelerationYG = rawAccelerationY / ACCEL_SCALE;
   data.accelerationZG = rawAccelerationZ / ACCEL_SCALE;
 
-  // data.gyroXDegreesPerSecond = rawGyroX / GYRO_SCALE;
-  // data.gyroYDegreesPerSecond = rawGyroY / GYRO_SCALE;
-  // data.gyroZDegreesPerSecond = rawGyroZ / GYRO_SCALE;
+  data.gyroXDegreesPerSecond = rawGyroX / GYRO_SCALE;
+  data.gyroYDegreesPerSecond = rawGyroY / GYRO_SCALE;
+  data.gyroZDegreesPerSecond = rawGyroZ / GYRO_SCALE;
 
   data.temperatureC = convertTemperatureToCelsius(rawTemperature);
   updateOrientation(data);
-  return true;
-}
 
-float printMPU6050Data() {
-  MPU6050Data data;
-
-  if (!readMPU6050(data)) {
-    Serial.println("Could not read IMU data.");
-    return NAN;
-  }
-
-  // Serial.print("Accel [g] X:");
-  // Serial.print(data.accelerationXG, 3);
-  // Serial.print(" Y:");
-  // Serial.print(data.accelerationYG, 3);
-  // Serial.print(" Z:");
-  // Serial.println(data.accelerationZG, 3);
-
-  // Serial.print(" | Gyro [deg/s] X:");
-  // Serial.print(data.gyroXDegreesPerSecond, 2);
-  // Serial.print(" Y:");
-  // Serial.print(data.gyroYDegreesPerSecond, 2);
-  // Serial.print(" Z:");
-  // Serial.print(data.gyroZDegreesPerSecond, 2);
-
-  // Serial.print(" | Temp:");
-  // Serial.print(data.temperatureC, 1);
-  // Serial.print(" C");
-
-  // Serial.print(" | Angles [deg] Roll:");
-  // Serial.print(data.rollDegrees, 1);
-  // Serial.print(" Pitch:");
-  // Serial.print(data.pitchDegrees, 1);
-  // Serial.print(" Yaw(relative):");
-  // Serial.println(data.yawDegrees, 1);
-
-  return data.accelerationXG;
+  return data;
 }

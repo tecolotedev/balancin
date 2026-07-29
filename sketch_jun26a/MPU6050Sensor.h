@@ -23,8 +23,5 @@ struct MPU6050Data {
 bool setupMPU6050Sensor();
 
 // Reads acceleration, angular velocity, temperature, and orientation angles.
-bool readMPU6050(MPU6050Data& data);
-
-// Prints one sensor reading and returns its X-axis acceleration in g.
-// Returns NAN if the sensor read fails.
-float printMPU6050Data();
+// accelerationXG is NAN if the sensor read fails.
+MPU6050Data readMPU6050();

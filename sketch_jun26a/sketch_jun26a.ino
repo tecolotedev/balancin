@@ -10,26 +10,21 @@
 
 void setup() {
   Serial.begin(115200);
-
-#if MPU6050_DIAGNOSTIC_MODE
-  setupI2CDiagnostic();
-#else
   setupMotors();
-  // setupUltrasonicSensor();
   setupMPU6050Sensor();
-
-  Serial.println("Stepper motors + HC-SR04 + MPU6050/MPU6500");
-#endif
+  Serial.println("Stepper motors  + MPU6050/MPU6500");
 }
 
 void loop() {
-#if MPU6050_DIAGNOSTIC_MODE
-  scanI2CBus();
-  delay(5000);
-#else
-  // printDistance();
+  const MPU6050Data data = readMPU6050();
 
-  const float accelerationXG = printMPU6050Data();
+  if (isnan(data.accelerationXG)) {
+    Serial.println("Could not read IMU data.");
+    delay(100);
+    return;
+  }
+
+  const float accelerationXG = data.accelerationXG;
   const float accelerationXGRounded =
       fabsf(accelerationXG) <= 0.1f ? 0.0f : roundf(accelerationXG * 100.0f) / 100.0f;
 
@@ -44,5 +39,4 @@ void loop() {
   delay(10);
 
 
-#endif
 }
