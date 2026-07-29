@@ -8,12 +8,15 @@ import threading
 import time
 from typing import Iterator, Optional, Sequence
 
-from .controller import PidController
+from .controller import Correction, Direction, PidController
 from .hardware import Motors, MpuSensor
 
 
 CONTROL_LOOP_DELAY_SECONDS = 0.050
 MAX_CONSECUTIVE_READ_ERRORS = 10
+MOTOR_TEST_STEPS = 200
+MOTOR_TEST_LOW_DELAY_SECONDS = 0.005
+MOTOR_TEST_PAUSE_SECONDS = 1.0
 
 
 def stabilize() -> None:
@@ -80,6 +83,34 @@ def diagnose_imu() -> None:
         )
 
 
+def run_motor_test() -> None:
+    print(
+        "Motor-only test: keep the mechanism raised or unloaded. "
+        "Press Ctrl-C to stop."
+    )
+    with Motors() as motors:
+        print(f"moving both motors forward {MOTOR_TEST_STEPS} steps")
+        motors.rotate_both(
+            Correction(
+                direction=Direction.FORWARD,
+                steps=MOTOR_TEST_STEPS,
+                low_delay_seconds=MOTOR_TEST_LOW_DELAY_SECONDS,
+            )
+        )
+        time.sleep(MOTOR_TEST_PAUSE_SECONDS)
+
+        print(f"moving both motors reverse {MOTOR_TEST_STEPS} steps")
+        motors.rotate_both(
+            Correction(
+                direction=Direction.REVERSE,
+                steps=MOTOR_TEST_STEPS,
+                low_delay_seconds=MOTOR_TEST_LOW_DELAY_SECONDS,
+            )
+        )
+
+    print("motor test complete; both motor drivers are disabled")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="stepper-stabilizer",
@@ -88,10 +119,19 @@ def build_parser() -> argparse.ArgumentParser:
             "MPU6050/MPU6500 on Raspberry Pi 5."
         ),
     )
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
         "--diagnose",
         action="store_true",
         help="detect the IMU and print one sample without claiming motor GPIO",
+    )
+    mode.add_argument(
+        "--motor-test",
+        action="store_true",
+        help=(
+            "bypass the IMU and move both motors 200 steps forward "
+            "and reverse"
+        ),
     )
     return parser
 
@@ -99,7 +139,9 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Optional[Sequence[str]] = None) -> int:
     arguments = build_parser().parse_args(argv)
     try:
-        if arguments.diagnose:
+        if arguments.motor_test:
+            run_motor_test()
+        elif arguments.diagnose:
             diagnose_imu()
         else:
             stabilize()
@@ -131,4 +173,3 @@ def _stop_event() -> Iterator[threading.Event]:
     finally:
         for signal_number, previous_handler in previous_handlers.items():
             signal.signal(signal_number, previous_handler)
-

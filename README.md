@@ -108,6 +108,17 @@ Run the control loop:
 python3 -m stepper_stabilizer
 ```
 
+To test the motors without using the IMU or PID, raise or unload the mechanism
+and run:
+
+```sh
+STEPPER_GPIOCHIP=4 python3 -m stepper_stabilizer --motor-test
+```
+
+The test moves both motors 200 steps forward, pauses for one second, then moves
+them 200 steps in reverse. Press Ctrl-C to stop; the drivers are disabled when
+the test exits.
+
 Press Ctrl-C to stop. SIGINT and SIGTERM are handled so both EN pins are driven
 high before exit. The program stops after 10 consecutive IMU read errors
 instead of continuing with stale data.
