@@ -3,7 +3,6 @@
 #include "I2CDiagnostic.h"
 #include "MPU6050Sensor.h"
 #include "MotorControl.h"
-#include "UltrasonicSensor.h"
 
 // Change this to 0 to return to the normal project.
 #define MPU6050_DIAGNOSTIC_MODE 0
@@ -33,7 +32,7 @@ void loop() {
   if (!isnan(accelerationXGRounded) && accelerationXGRounded != 0.0f) {
     Serial.print("Accel X:");
     Serial.println(accelerationXGRounded, 3);
-    moveBothMotors(accelerationXGRounded > 0.0f ? HIGH : LOW, 2);
+    rotateBothMotors(accelerationXGRounded > 0.0f ? HIGH : LOW, 2, 9990);
   }
 
   delay(10);
