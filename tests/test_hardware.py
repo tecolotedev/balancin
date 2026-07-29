@@ -44,15 +44,26 @@ class FakeOutput:
 
 
 class FakeLgpio:
-    def __init__(self) -> None:
+    def __init__(self, labels=None) -> None:
         self.calls = []
+        self.labels = labels or {}
 
     def gpiochip_open(self, number: int) -> int:
         self.calls.append(("open", number))
-        return 42
+        return 42 + number
 
     def gpiochip_close(self, handle: int) -> None:
         self.calls.append(("close_chip", handle))
+
+    def gpio_get_chip_info(self, handle: int):
+        number = handle - 42
+        self.calls.append(("chip_info", handle))
+        return [
+            0,
+            54,
+            f"gpiochip{number}",
+            self.labels.get(number, "internal-gpio"),
+        ]
 
     def gpio_claim_output(
         self,
@@ -73,18 +84,19 @@ class LgpioAdapterTests(unittest.TestCase):
     def test_finds_rp1_label_instead_of_assuming_chip_number(self) -> None:
         with TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
-            sysfs = root / "sys"
             devices = root / "dev"
-            (sysfs / "gpiochip4").mkdir(parents=True)
             devices.mkdir()
-            (sysfs / "gpiochip4" / "label").write_text("pinctrl-rp1\n")
             (devices / "gpiochip0").touch()
             (devices / "gpiochip4").touch()
+            fake_lgpio = FakeLgpio(labels={4: "pinctrl-rp1"})
 
-            self.assertEqual(
-                _find_header_gpiochip(sysfs, devices),
-                (4, devices / "gpiochip4"),
-            )
+            with patch(
+                "stepper_stabilizer.hardware._verify_gpiochip_access"
+            ):
+                self.assertEqual(
+                    _find_header_gpiochip(fake_lgpio, devices),
+                    (4, devices / "gpiochip4"),
+                )
 
     def test_direct_adapter_claims_writes_and_releases_pin(self) -> None:
         fake_lgpio = FakeLgpio()

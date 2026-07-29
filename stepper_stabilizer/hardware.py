@@ -52,7 +52,7 @@ def _gpiochip_number(path: Path) -> Optional[int]:
 
 
 def _find_header_gpiochip(
-    sysfs_root: Path = Path("/sys/class/gpio"),
+    lgpio_module: Any,
     device_root: Path = Path("/dev"),
 ) -> tuple[int, Path]:
     """Locate the RP1 gpiochip used by the Raspberry Pi 5 header."""
@@ -74,38 +74,56 @@ def _find_header_gpiochip(
             )
         return number, device_root / f"gpiochip{number}"
 
-    for gpiochip in sorted(sysfs_root.glob("gpiochip*")):
-        number = _gpiochip_number(gpiochip)
+    gpiochips = []
+    for device in device_root.glob("gpiochip*"):
+        number = _gpiochip_number(device)
         if number is None:
             continue
+        gpiochips.append((number, device))
+    gpiochips.sort()
+
+    if not gpiochips:
+        raise RuntimeError(
+            "the Raspberry Pi GPIO character device was not found; "
+            "no /dev/gpiochip devices are available. Run `gpiodetect` "
+            "and verify this is running on the Pi host, not in an "
+            "unconfigured container"
+        )
+
+    detected = []
+    first_error: Optional[RuntimeError] = None
+    for number, device in gpiochips:
         try:
-            label = (gpiochip / "label").read_text().strip()
-        except OSError:
+            _verify_gpiochip_access(device)
+            handle = lgpio_module.gpiochip_open(number)
+        except Exception as error:
+            if first_error is None:
+                first_error = RuntimeError(
+                    f"could not inspect {device}: {error}"
+                )
             continue
+        try:
+            info = lgpio_module.gpio_get_chip_info(handle)
+        finally:
+            lgpio_module.gpiochip_close(handle)
+
+        # lgpio returns [status, number-of-lines, device-name, label].
+        label = info[-1]
+        if isinstance(label, bytes):
+            label = label.decode(errors="replace")
+        label = str(label)
+        detected.append(f"{device.name} [{label}]")
         if label == RP1_GPIOCHIP_LABEL:
-            return number, device_root / f"gpiochip{number}"
+            return number, device
 
-    # Current Pi 5 kernels put the RP1 header at gpiochip0. This fallback also
-    # supports containers where /sys is hidden but /dev/gpiochip0 is passed
-    # through. STEPPER_GPIOCHIP can select 4 for an older kernel/container.
-    gpiochip_zero = device_root / "gpiochip0"
-    if gpiochip_zero.exists():
-        return 0, gpiochip_zero
+    if not detected and first_error is not None:
+        raise first_error
 
-    gpiochip_four = device_root / "gpiochip4"
-    if gpiochip_four.exists():
-        return 4, gpiochip_four
-
-    available = ", ".join(
-        path.name
-        for path in sorted(device_root.glob("gpiochip*"))
-    )
-    detail = available if available else "none"
+    detail = ", ".join(detected)
     raise RuntimeError(
-        "the Raspberry Pi GPIO character device was not found; "
-        f"available /dev/gpiochip devices: {detail}. Run `gpiodetect` "
-        "and verify this is running on the Pi host, not in an "
-        "unconfigured container"
+        f"no /dev/gpiochip device has the {RP1_GPIOCHIP_LABEL!r} label; "
+        f"detected: {detail}. Run `gpiodetect` and set "
+        f"{GPIOCHIP_OVERRIDE_ENV} to the RP1 gpiochip number"
     )
 
 
@@ -146,10 +164,10 @@ class _LgpioChip:
                 "`sudo apt install python3-lgpio`"
             ) from error
 
-        self.number, self.device = _find_header_gpiochip()
-        _verify_gpiochip_access(self.device)
         self._lgpio = lgpio
         self._closed = False
+        self.number, self.device = _find_header_gpiochip(lgpio)
+        _verify_gpiochip_access(self.device)
 
         try:
             self._handle = lgpio.gpiochip_open(self.number)
