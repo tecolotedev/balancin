@@ -275,12 +275,12 @@ float printMPU6050Data() {
     return NAN;
   }
 
-  Serial.print("Accel [g] X:");
-  Serial.print(data.accelerationXG, 3);
-  Serial.print(" Y:");
-  Serial.print(data.accelerationYG, 3);
-  Serial.print(" Z:");
-  Serial.println(data.accelerationZG, 3);
+  // Serial.print("Accel [g] X:");
+  // Serial.print(data.accelerationXG, 3);
+  // Serial.print(" Y:");
+  // Serial.print(data.accelerationYG, 3);
+  // Serial.print(" Z:");
+  // Serial.println(data.accelerationZG, 3);
 
   // Serial.print(" | Gyro [deg/s] X:");
   // Serial.print(data.gyroXDegreesPerSecond, 2);

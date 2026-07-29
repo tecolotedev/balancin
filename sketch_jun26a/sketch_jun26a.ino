@@ -30,12 +30,18 @@ void loop() {
   // printDistance();
 
   const float accelerationXG = printMPU6050Data();
+  const float accelerationXGRounded =
+      fabsf(accelerationXG) <= 0.1f ? 0.0f : roundf(accelerationXG * 100.0f) / 100.0f;
 
   // Positive X acceleration moves one way; zero or negative moves the other.
-  if (!isnan(accelerationXG)) {
-    moveBothMotors(accelerationXG > 0.0f ? HIGH : LOW, 20);
+  // Do not move the motors when the rounded value is zero.
+  if (!isnan(accelerationXGRounded) && accelerationXGRounded != 0.0f) {
+    Serial.print("Accel X:");
+    Serial.println(accelerationXGRounded, 3);
+    moveBothMotors(accelerationXGRounded > 0.0f ? HIGH : LOW, 2);
   }
 
+  delay(10);
 
 
 #endif

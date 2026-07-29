@@ -33,7 +33,7 @@ void rotateBothMotors(int direction, int steps) {
 
     digitalWrite(MOTOR1_STEP_PIN, LOW);
     digitalWrite(MOTOR2_STEP_PIN, LOW);
-    delayMicroseconds(5990);
+    delayMicroseconds(9990);
   }
 }
 
