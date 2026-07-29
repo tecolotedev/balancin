@@ -1,4 +1,7 @@
-# MPU6050 / MPU6500 wiring
+# Legacy ESP32 MPU6050 / MPU6500 wiring
+
+> This describes the archived ESP32 sketch only. For the active Raspberry Pi
+> wiring and Rust build instructions, see [`../README.md`](../README.md).
 
 The MPU6050 or MPU6500 uses a separate I2C pin pair because GPIO 22 is already
 the STEP output for motor 1.
