@@ -267,12 +267,12 @@ bool readMPU6050(MPU6050Data& data) {
   return true;
 }
 
-void printMPU6050Data() {
+float printMPU6050Data() {
   MPU6050Data data;
 
   if (!readMPU6050(data)) {
     Serial.println("Could not read IMU data.");
-    return;
+    return NAN;
   }
 
   Serial.print("Accel [g] X:");
@@ -299,4 +299,6 @@ void printMPU6050Data() {
   // Serial.print(data.pitchDegrees, 1);
   // Serial.print(" Yaw(relative):");
   // Serial.println(data.yawDegrees, 1);
+
+  return data.accelerationXG;
 }

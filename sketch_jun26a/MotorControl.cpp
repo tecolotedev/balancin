@@ -16,11 +16,8 @@ constexpr int MOTOR2_ENABLE_PIN = 26;
 constexpr int DRIVER_ENABLED = LOW;
 constexpr int DRIVER_DISABLED = HIGH;
 
-// Change this value to match the selected microstepping mode.
-constexpr int STEPS_PER_REVOLUTION = 200;
-
-void rotateBothMotors(int direction, int revolutions) {
-  if (revolutions <= 0) {
+void rotateBothMotors(int direction, int steps) {
+  if (steps <= 0) {
     return;
   }
 
@@ -29,16 +26,14 @@ void rotateBothMotors(int direction, int revolutions) {
   digitalWrite(MOTOR2_DIR_PIN, direction);
   delayMicroseconds(5);
 
-  for (int revolution = 0; revolution < revolutions; revolution++) {
-    for (int step = 0; step < STEPS_PER_REVOLUTION; step++) {
-      digitalWrite(MOTOR1_STEP_PIN, HIGH);
-      digitalWrite(MOTOR2_STEP_PIN, HIGH);
-      delayMicroseconds(10);  // Higher values produce a slower speed.
+  for (int step = 0; step < steps; step++) {
+    digitalWrite(MOTOR1_STEP_PIN, HIGH);
+    digitalWrite(MOTOR2_STEP_PIN, HIGH);
+    delayMicroseconds(10);  // Higher values produce a slower speed.
 
-      digitalWrite(MOTOR1_STEP_PIN, LOW);
-      digitalWrite(MOTOR2_STEP_PIN, LOW);
-      delayMicroseconds(5990);
-    }
+    digitalWrite(MOTOR1_STEP_PIN, LOW);
+    digitalWrite(MOTOR2_STEP_PIN, LOW);
+    delayMicroseconds(5990);
   }
 }
 
@@ -61,18 +56,22 @@ void setupMotors() {
   digitalWrite(MOTOR2_ENABLE_PIN, DRIVER_DISABLED);
 }
 
-void runBothMotors() {
+void moveBothMotors(int direction, int steps) {
   digitalWrite(MOTOR1_ENABLE_PIN, DRIVER_ENABLED);
   digitalWrite(MOTOR2_ENABLE_PIN, DRIVER_ENABLED);
   delay(10);
 
-  rotateBothMotors(HIGH, 10);
-  delay(100);
-
-  rotateBothMotors(LOW, 10);
-  delay(100);
+  rotateBothMotors(direction, steps);
 
   digitalWrite(MOTOR1_ENABLE_PIN, DRIVER_DISABLED);
   digitalWrite(MOTOR2_ENABLE_PIN, DRIVER_DISABLED);
   delay(10);
+}
+
+void runBothMotors() {
+  moveBothMotors(HIGH, 2000);
+  delay(100);
+
+  moveBothMotors(LOW, 2000);
+  delay(100);
 }

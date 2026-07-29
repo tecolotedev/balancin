@@ -29,8 +29,14 @@ void loop() {
 #else
   // printDistance();
 
-  printMPU6050Data();
-  delay(1000);
-  //runBothMotors();
+  const float accelerationXG = printMPU6050Data();
+
+  // Positive X acceleration moves one way; zero or negative moves the other.
+  if (!isnan(accelerationXG)) {
+    moveBothMotors(accelerationXG > 0.0f ? HIGH : LOW, 20);
+  }
+
+
+
 #endif
 }
