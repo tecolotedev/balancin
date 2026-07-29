@@ -70,12 +70,12 @@ sudo raspi-config
 
 Choose **Interface Options → I2C → Enable**, then reboot.
 
-Install the Python 3 GPIO/I²C packages. GPIO Zero uses the `lgpio` backend on
+Install the Python 3 GPIO/I²C packages. The program uses `lgpio` directly on
 Raspberry Pi 5:
 
 ```sh
 sudo apt update
-sudo apt install -y python3-gpiozero python3-lgpio python3-smbus \
+sudo apt install -y python3-lgpio python3-smbus \
   python3-venv i2c-tools
 ```
 
@@ -99,18 +99,38 @@ diagnostic. Keep the motor supply off during this first test:
 
 ```sh
 cd ~/stepper-stabilizer
-GPIOZERO_PIN_FACTORY=lgpio python3 -m stepper_stabilizer --diagnose
+python3 -m stepper_stabilizer --diagnose
 ```
 
 Run the control loop:
 
 ```sh
-GPIOZERO_PIN_FACTORY=lgpio python3 -m stepper_stabilizer
+python3 -m stepper_stabilizer
 ```
 
 Press Ctrl-C to stop. SIGINT and SIGTERM are handled so both EN pins are driven
 high before exit. The program stops after 10 consecutive IMU read errors
 instead of continuing with stale data.
+
+The program finds the Pi 5 header chip by its `pinctrl-rp1` label, so it works
+whether the kernel exposes it as `/dev/gpiochip0` or `/dev/gpiochip4`. If
+automatic detection is unavailable in a container, select the number reported
+for `pinctrl-rp1` by `gpiodetect`:
+
+```sh
+STEPPER_GPIOCHIP=0 python3 -m stepper_stabilizer
+```
+
+If GPIO cannot be opened, confirm the selected device and account access:
+
+```sh
+gpiodetect
+ls -l /dev/gpiochip*
+id
+```
+
+The account must have read/write access to the selected device. After adding an
+account to the `gpio` group, log out completely and log back in before testing.
 
 The project can optionally be installed in a virtual environment created with
 access to Raspberry Pi OS packages:

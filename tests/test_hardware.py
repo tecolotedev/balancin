@@ -1,4 +1,8 @@
+from pathlib import Path
+import sys
+from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from stepper_stabilizer.controller import Correction, Direction
 from stepper_stabilizer.hardware import (
@@ -7,6 +11,8 @@ from stepper_stabilizer.hardware import (
     MOTOR_1_ENABLE_BCM,
     MOTOR_2_ENABLE_BCM,
     Motors,
+    _LgpioChip,
+    _find_header_gpiochip,
 )
 
 
@@ -35,6 +41,83 @@ class FakeOutput:
 
     def close(self) -> None:
         self.closed = True
+
+
+class FakeLgpio:
+    def __init__(self) -> None:
+        self.calls = []
+
+    def gpiochip_open(self, number: int) -> int:
+        self.calls.append(("open", number))
+        return 42
+
+    def gpiochip_close(self, handle: int) -> None:
+        self.calls.append(("close_chip", handle))
+
+    def gpio_claim_output(
+        self,
+        handle: int,
+        pin: int,
+        level: int,
+    ) -> None:
+        self.calls.append(("claim", handle, pin, level))
+
+    def gpio_write(self, handle: int, pin: int, level: int) -> None:
+        self.calls.append(("write", handle, pin, level))
+
+    def gpio_free(self, handle: int, pin: int) -> None:
+        self.calls.append(("free", handle, pin))
+
+
+class LgpioAdapterTests(unittest.TestCase):
+    def test_finds_rp1_label_instead_of_assuming_chip_number(self) -> None:
+        with TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            sysfs = root / "sys"
+            devices = root / "dev"
+            (sysfs / "gpiochip4").mkdir(parents=True)
+            devices.mkdir()
+            (sysfs / "gpiochip4" / "label").write_text("pinctrl-rp1\n")
+            (devices / "gpiochip0").touch()
+            (devices / "gpiochip4").touch()
+
+            self.assertEqual(
+                _find_header_gpiochip(sysfs, devices),
+                (4, devices / "gpiochip4"),
+            )
+
+    def test_direct_adapter_claims_writes_and_releases_pin(self) -> None:
+        fake_lgpio = FakeLgpio()
+        with (
+            patch.dict(sys.modules, {"lgpio": fake_lgpio}),
+            patch(
+                "stepper_stabilizer.hardware._find_header_gpiochip",
+                return_value=(0, Path("/dev/gpiochip0")),
+            ),
+            patch("stepper_stabilizer.hardware._verify_gpiochip_access"),
+        ):
+            chip = _LgpioChip()
+            output = chip.output(
+                17,
+                active_high=True,
+                initial_value=False,
+            )
+            output.on()
+            output.off()
+            output.close()
+            chip.close()
+
+        self.assertEqual(
+            fake_lgpio.calls,
+            [
+                ("open", 0),
+                ("claim", 42, 17, 0),
+                ("write", 42, 17, 1),
+                ("write", 42, 17, 0),
+                ("free", 42, 17),
+                ("close_chip", 42),
+            ],
+        )
 
 
 class MotorTests(unittest.TestCase):

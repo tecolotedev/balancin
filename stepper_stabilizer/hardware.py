@@ -1,6 +1,8 @@
 """Raspberry Pi 5 GPIO and I²C adapters."""
 
 from contextlib import AbstractContextManager
+import os
+from pathlib import Path
 import time
 from typing import Any, Callable, List, Optional, Protocol
 
@@ -26,6 +28,8 @@ REGISTER_WHO_AM_I = 0x75
 
 DRIVER_DIRECTION_SETUP_SECONDS = 0.000_005
 DRIVER_STEP_HIGH_SECONDS = 0.000_010
+GPIOCHIP_OVERRIDE_ENV = "STEPPER_GPIOCHIP"
+RP1_GPIOCHIP_LABEL = "pinctrl-rp1"
 
 
 class _Output(Protocol):
@@ -37,6 +41,199 @@ class _Output(Protocol):
 OutputFactory = Callable[..., _Output]
 
 
+def _gpiochip_number(path: Path) -> Optional[int]:
+    name = path.name
+    if not name.startswith("gpiochip"):
+        return None
+    try:
+        return int(name.removeprefix("gpiochip"))
+    except ValueError:
+        return None
+
+
+def _find_header_gpiochip(
+    sysfs_root: Path = Path("/sys/class/gpio"),
+    device_root: Path = Path("/dev"),
+) -> tuple[int, Path]:
+    """Locate the RP1 gpiochip used by the Raspberry Pi 5 header."""
+
+    override = os.environ.get(GPIOCHIP_OVERRIDE_ENV)
+    if override is not None:
+        value = override.removeprefix("gpiochip")
+        try:
+            number = int(value)
+        except ValueError as error:
+            raise RuntimeError(
+                f"{GPIOCHIP_OVERRIDE_ENV} must be a number such as 0, "
+                f"not {override!r}"
+            ) from error
+        if number < 0:
+            raise RuntimeError(
+                f"{GPIOCHIP_OVERRIDE_ENV} must be zero or greater, "
+                f"not {override!r}"
+            )
+        return number, device_root / f"gpiochip{number}"
+
+    for gpiochip in sorted(sysfs_root.glob("gpiochip*")):
+        number = _gpiochip_number(gpiochip)
+        if number is None:
+            continue
+        try:
+            label = (gpiochip / "label").read_text().strip()
+        except OSError:
+            continue
+        if label == RP1_GPIOCHIP_LABEL:
+            return number, device_root / f"gpiochip{number}"
+
+    # Current Pi 5 kernels put the RP1 header at gpiochip0. This fallback also
+    # supports containers where /sys is hidden but /dev/gpiochip0 is passed
+    # through. STEPPER_GPIOCHIP can select 4 for an older kernel/container.
+    gpiochip_zero = device_root / "gpiochip0"
+    if gpiochip_zero.exists():
+        return 0, gpiochip_zero
+
+    gpiochip_four = device_root / "gpiochip4"
+    if gpiochip_four.exists():
+        return 4, gpiochip_four
+
+    available = ", ".join(
+        path.name
+        for path in sorted(device_root.glob("gpiochip*"))
+    )
+    detail = available if available else "none"
+    raise RuntimeError(
+        "the Raspberry Pi GPIO character device was not found; "
+        f"available /dev/gpiochip devices: {detail}. Run `gpiodetect` "
+        "and verify this is running on the Pi host, not in an "
+        "unconfigured container"
+    )
+
+
+def _verify_gpiochip_access(device: Path) -> None:
+    try:
+        descriptor = os.open(
+            device,
+            os.O_RDWR | getattr(os, "O_CLOEXEC", 0),
+        )
+    except PermissionError as error:
+        raise RuntimeError(
+            f"permission denied opening {device}; add this account to the "
+            "gpio group with `sudo usermod -aG gpio \"$USER\"`, then log "
+            "out completely and log back in"
+        ) from error
+    except FileNotFoundError as error:
+        raise RuntimeError(
+            f"{device} does not exist; run `gpiodetect` and set "
+            f"{GPIOCHIP_OVERRIDE_ENV} to the RP1 gpiochip number"
+        ) from error
+    except OSError as error:
+        raise RuntimeError(
+            f"the operating system could not open {device}: {error}"
+        ) from error
+    else:
+        os.close(descriptor)
+
+
+class _LgpioChip:
+    """Small direct lgpio adapter that avoids GPIO Zero chip guessing."""
+
+    def __init__(self) -> None:
+        try:
+            import lgpio
+        except ImportError as error:
+            raise RuntimeError(
+                "lgpio is not installed; on Raspberry Pi OS run "
+                "`sudo apt install python3-lgpio`"
+            ) from error
+
+        self.number, self.device = _find_header_gpiochip()
+        _verify_gpiochip_access(self.device)
+        self._lgpio = lgpio
+        self._closed = False
+
+        try:
+            self._handle = lgpio.gpiochip_open(self.number)
+        except Exception as error:
+            raise RuntimeError(
+                f"lgpio could not open {self.device}: {error}; run "
+                f"`gpiodetect` and, if {RP1_GPIOCHIP_LABEL} has a "
+                "different number, set "
+                f"{GPIOCHIP_OVERRIDE_ENV}=<that-number>"
+            ) from error
+
+    def output(
+        self,
+        pin: int,
+        *,
+        active_high: bool,
+        initial_value: bool,
+    ) -> "_LgpioOutput":
+        return _LgpioOutput(
+            self,
+            pin,
+            active_high=active_high,
+            initial_value=initial_value,
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._lgpio.gpiochip_close(self._handle)
+        self._closed = True
+
+
+class _LgpioOutput:
+    def __init__(
+        self,
+        chip: _LgpioChip,
+        pin: int,
+        *,
+        active_high: bool,
+        initial_value: bool,
+    ) -> None:
+        self._chip = chip
+        self._pin = pin
+        self._active_high = active_high
+        self._closed = False
+        initial_level = initial_value == active_high
+        try:
+            chip._lgpio.gpio_claim_output(
+                chip._handle,
+                pin,
+                int(initial_level),
+            )
+        except Exception as error:
+            raise RuntimeError(
+                f"could not claim BCM GPIO {pin} on {chip.device}: "
+                f"{error}; stop any other program using this pin and run "
+                f"`sudo lsof {chip.device}` to identify it"
+            ) from error
+
+    def on(self) -> None:
+        self._write(self._active_high)
+
+    def off(self) -> None:
+        self._write(not self._active_high)
+
+    def _write(self, level: bool) -> None:
+        if self._closed:
+            raise RuntimeError(f"BCM GPIO {self._pin} is already closed")
+        self._chip._lgpio.gpio_write(
+            self._chip._handle,
+            self._pin,
+            int(level),
+        )
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._chip._lgpio.gpio_free(
+            self._chip._handle,
+            self._pin,
+        )
+        self._closed = True
+
+
 class Motors(AbstractContextManager["Motors"]):
     """Own and safely operate both DRV8825 GPIO groups."""
 
@@ -45,18 +242,14 @@ class Motors(AbstractContextManager["Motors"]):
         output_factory: Optional[OutputFactory] = None,
         sleeper: Callable[[float], None] = time.sleep,
     ) -> None:
+        gpio_chip: Optional[_LgpioChip] = None
         if output_factory is None:
-            try:
-                from gpiozero import DigitalOutputDevice
-            except ImportError as error:
-                raise RuntimeError(
-                    "GPIO Zero is not installed; on Raspberry Pi OS run "
-                    "`sudo apt install python3-gpiozero python3-lgpio`"
-                ) from error
-            output_factory = DigitalOutputDevice
+            gpio_chip = _LgpioChip()
+            output_factory = gpio_chip.output
 
         self._sleep = sleeper
         self._closed = False
+        self._gpio_chip = gpio_chip
         created: List[_Output] = []
 
         def create(pin: int, initial_value: bool) -> _Output:
@@ -79,7 +272,15 @@ class Motors(AbstractContextManager["Motors"]):
             self._direction_2 = create(MOTOR_2_DIR_BCM, False)
         except Exception:
             for output in reversed(created):
-                output.close()
+                try:
+                    output.close()
+                except Exception:
+                    pass
+            if self._gpio_chip is not None:
+                try:
+                    self._gpio_chip.close()
+                except Exception:
+                    pass
             raise
 
     def rotate_both(self, correction: Correction) -> None:
@@ -151,6 +352,12 @@ class Motors(AbstractContextManager["Motors"]):
         ):
             try:
                 output.close()
+            except Exception as error:
+                if first_error is None:
+                    first_error = error
+        if self._gpio_chip is not None:
+            try:
+                self._gpio_chip.close()
             except Exception as error:
                 if first_error is None:
                     first_error = error
