@@ -1,0 +1,15 @@
+[Unit]
+Description=Two-motor stepper stabilizer
+After=local-fs.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/stepper-stabilizer
+Environment=GPIOZERO_PIN_FACTORY=lgpio
+ExecStart=/usr/bin/python3 -m stepper_stabilizer
+Restart=on-failure
+RestartSec=2
+
+[Install]
+WantedBy=default.target
+

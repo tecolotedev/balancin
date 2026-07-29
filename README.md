@@ -1,0 +1,170 @@
+# Raspberry Pi 5 stepper stabilizer
+
+This is the Python 3 migration of the original ESP32 Arduino project. It drives
+two DRV8825 stepper drivers together and uses X-axis acceleration from an
+MPU6050 or MPU6500 as the error input to the original PID controller.
+
+The active Raspberry Pi implementation is in `stepper_stabilizer/`. The
+original Arduino sketch remains in `sketch_jun26a/` as a reference.
+
+## Hardware
+
+- Raspberry Pi 5 with current 64-bit Raspberry Pi OS
+- 2 × DRV8825 carrier boards
+- 2 × stepper motors
+- MPU6050 (such as a GY-521 board) or MPU6500
+- Separate motor power supply sized for the motors
+- At least 47 µF (100 µF recommended) electrolytic capacitor at each DRV8825,
+  placed between VMOT and GND near the carrier
+- 2 × 10 kΩ resistors for pull-ups on the DRV8825 EN inputs
+
+### Raspberry Pi pin map
+
+The program and this table use **BCM GPIO numbering**, not physical header
+numbers.
+
+| Function | BCM GPIO | Physical pin | Connect to |
+|---|---:|---:|---|
+| I²C SDA | 2 | 3 | IMU SDA |
+| I²C SCL | 3 | 5 | IMU SCL |
+| Motor 1 STEP | 17 | 11 | DRV8825 #1 STEP |
+| Motor 1 DIR | 27 | 13 | DRV8825 #1 DIR |
+| Motor 1 EN | 22 | 15 | DRV8825 #1 EN |
+| Motor 2 STEP | 23 | 16 | DRV8825 #2 STEP |
+| Motor 2 DIR | 24 | 18 | DRV8825 #2 DIR |
+| Motor 2 EN | 25 | 22 | DRV8825 #2 EN |
+| 3.3 V | — | 1 or 17 | IMU VCC; DRV8825 RESET/SLEEP |
+| Ground | — | 6, 9, 14, etc. | IMU, both drivers, motor PSU ground |
+
+Wire IMU AD0 to ground for address `0x68`, or to 3.3 V for `0x69`. The program
+detects either address and identifies an MPU6050 (`WHO_AM_I=0x68`) or MPU6500
+(`WHO_AM_I=0x70`).
+
+For each DRV8825:
+
+1. Join RESET and SLEEP and pull them up to 3.3 V.
+2. Add a 10 kΩ resistor from EN to 3.3 V. EN is active-low; the resistor keeps
+   the driver disabled while the Pi boots or after the program releases GPIO.
+3. Ground M0, M1, and M2 for full-step mode, or set the desired microstepping.
+   The correction step counts are inherited from the original setup.
+4. Connect VMOT only to the external motor supply, with the bulk capacitor
+   close to the carrier. Never power a motor from the Raspberry Pi.
+5. Connect the motor-supply ground, both driver grounds, and Pi ground
+   together. Never connect 5 V to a Pi GPIO.
+
+Both DIR outputs receive the same level, matching the ESP32 sketch. If the
+mechanism requires opposite physical motor rotation, reverse one motor coil
+pair or change the direction handling in
+`stepper_stabilizer/hardware.py`.
+
+Set the current limit on each DRV8825 for its motor before connecting motor
+power.
+
+## Raspberry Pi OS setup
+
+Enable I²C:
+
+```sh
+sudo raspi-config
+```
+
+Choose **Interface Options → I2C → Enable**, then reboot.
+
+Install the Python 3 GPIO/I²C packages. GPIO Zero uses the `lgpio` backend on
+Raspberry Pi 5:
+
+```sh
+sudo apt update
+sudo apt install -y python3-gpiozero python3-lgpio python3-smbus \
+  python3-venv i2c-tools
+```
+
+Make sure your account can access GPIO and I²C, then log out and back in if its
+group membership changed:
+
+```sh
+sudo usermod -aG gpio,i2c "$USER"
+```
+
+Confirm that the sensor appears at `68` or `69`:
+
+```sh
+i2cdetect -y 1
+```
+
+## Diagnose and run
+
+Copy this project to `~/stepper-stabilizer`, then start with the sensor-only
+diagnostic. Keep the motor supply off during this first test:
+
+```sh
+cd ~/stepper-stabilizer
+GPIOZERO_PIN_FACTORY=lgpio python3 -m stepper_stabilizer --diagnose
+```
+
+Run the control loop:
+
+```sh
+GPIOZERO_PIN_FACTORY=lgpio python3 -m stepper_stabilizer
+```
+
+Press Ctrl-C to stop. SIGINT and SIGTERM are handled so both EN pins are driven
+high before exit. The program stops after 10 consecutive IMU read errors
+instead of continuing with stale data.
+
+The project can optionally be installed in a virtual environment created with
+access to Raspberry Pi OS packages:
+
+```sh
+python3 -m venv --system-site-packages .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/stepper-stabilizer --diagnose
+```
+
+## Start automatically
+
+The included user service assumes the project is at
+`~/stepper-stabilizer`:
+
+```sh
+mkdir -p ~/.config/systemd/user
+cp deploy/stepper-stabilizer.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now stepper-stabilizer
+journalctl --user -u stepper-stabilizer -f
+```
+
+Stop and disable it with:
+
+```sh
+systemctl --user disable --now stepper-stabilizer
+```
+
+## Tune and test safely
+
+The initial values in `stepper_stabilizer/controller.py` match the ESP32
+project:
+
+- `Kp = 0.80`
+- `Ki = 0.05`
+- `Kd = 0.10`
+- acceleration dead band = `0.10 g`
+- correction bands = 2, 4, 8, or 20 steps
+- STEP low delay = 2.5–15 ms
+
+Test unloaded or with the mechanism raised safely. Begin with a low DRV8825
+current limit and keep a physical power cutoff within reach. If a tilt makes
+the mechanism move farther away from the target, reverse the logical direction
+in `Motors.rotate_both` before tuning PID values.
+
+Python on Raspberry Pi OS is not a hard real-time controller. The inherited
+2.5–15 ms STEP interval is slow enough for this implementation, but a
+microcontroller-based pulse generator is preferable if future changes require
+high or tightly timed step rates.
+
+Run the logic and simulated hardware tests on the Pi or any development
+computer:
+
+```sh
+python3 -m unittest discover -s tests -v
+```

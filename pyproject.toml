@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "stepper-stabilizer"
+version = "1.0.0"
+description = "Raspberry Pi 5 controller for two DRV8825 stepper drivers and an MPU6050/MPU6500"
+requires-python = ">=3.9"
+
+[project.scripts]
+stepper-stabilizer = "stepper_stabilizer.app:main"
+
+[tool.setuptools.packages.find]
+include = ["stepper_stabilizer*"]
+
