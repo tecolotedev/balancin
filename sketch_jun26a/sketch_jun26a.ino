@@ -17,7 +17,6 @@ constexpr float PID_INTEGRAL_LIMIT = 0.50f;
 constexpr float PID_OUTPUT_LIMIT = 1.0f;
 constexpr float ACCELERATION_DEAD_BAND_G = 0.1f;
 
-constexpr unsigned int STEPS_PER_CORRECTION = 2;
 constexpr unsigned int FAST_LOW_DELAY_MICROSECONDS = 2500;
 constexpr unsigned int SLOW_LOW_DELAY_MICROSECONDS = 15000;
 
@@ -90,8 +89,21 @@ void loop() {
     const unsigned int delayLow = static_cast<unsigned int>(
         SLOW_LOW_DELAY_MICROSECONDS - correctionStrength *
         (SLOW_LOW_DELAY_MICROSECONDS - FAST_LOW_DELAY_MICROSECONDS));
+    
+    int steps_per_correction = 0;
 
-    rotateBothMotors(direction, STEPS_PER_CORRECTION, delayLow);
+    if(fabsf(error) < 0.2){
+      steps_per_correction = 2;
+    }else if (fabsf(error) < 0.4){
+      steps_per_correction = 4;
+    }else if (fabsf(error) < 0.6){
+      steps_per_correction = 8;
+    }else{
+      steps_per_correction = 20;
+    }
+    
+    
+    rotateBothMotors(direction, steps_per_correction, delayLow);
   }
 
   delay(50);
