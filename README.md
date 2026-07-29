@@ -27,10 +27,10 @@ numbers.
 |---|---:|---:|---|
 | I²C SDA | 2 | 3 | IMU SDA |
 | I²C SCL | 3 | 5 | IMU SCL |
-| Motor 1 STEP | 17 | 11 | DRV8825 #1 STEP |
+| Motor 1 STEP | 5 | 29 | DRV8825 #1 STEP |
 | Motor 1 DIR | 27 | 13 | DRV8825 #1 DIR |
 | Motor 1 EN | 22 | 15 | DRV8825 #1 EN |
-| Motor 2 STEP | 23 | 16 | DRV8825 #2 STEP |
+| Motor 2 STEP | 6 | 31 | DRV8825 #2 STEP |
 | Motor 2 DIR | 24 | 18 | DRV8825 #2 DIR |
 | Motor 2 EN | 25 | 22 | DRV8825 #2 EN |
 | 3.3 V | — | 1 or 17 | IMU VCC; DRV8825 RESET/SLEEP |
@@ -62,14 +62,6 @@ power.
 
 ## Raspberry Pi OS setup
 
-Enable I²C:
-
-```sh
-sudo raspi-config
-```
-
-Choose **Interface Options → I2C → Enable**, then reboot.
-
 Install the Python 3 GPIO/I²C packages. The program uses `lgpio` directly on
 Raspberry Pi 5:
 
@@ -79,16 +71,27 @@ sudo apt install -y python3-lgpio python3-smbus \
   python3-venv i2c-tools
 ```
 
-Make sure your account can access GPIO and I²C, then log out and back in if its
-group membership changed:
+Enable I²C:
+
+```sh
+sudo raspi-config
+```
+
+Choose **Interface Options → I2C → Enable**.
+
+Make sure your account can access GPIO and I²C, then reboot so the I²C
+interface and new group membership are active:
 
 ```sh
 sudo usermod -aG gpio,i2c "$USER"
+sudo reboot
 ```
 
-Confirm that the sensor appears at `68` or `69`:
+After reboot, confirm that `/dev/i2c-1` exists and scan it. `i2cdetect` verifies
+the bus; it does not enable I²C. The sensor should appear at `68` or `69`:
 
 ```sh
+ls -l /dev/i2c-1
 i2cdetect -y 1
 ```
 

@@ -9,7 +9,9 @@ from stepper_stabilizer.hardware import (
     DRIVER_DIRECTION_SETUP_SECONDS,
     DRIVER_STEP_HIGH_SECONDS,
     MOTOR_1_ENABLE_BCM,
+    MOTOR_1_STEP_BCM,
     MOTOR_2_ENABLE_BCM,
+    MOTOR_2_STEP_BCM,
     Motors,
     _LgpioChip,
     _find_header_gpiochip,
@@ -133,6 +135,10 @@ class LgpioAdapterTests(unittest.TestCase):
 
 
 class MotorTests(unittest.TestCase):
+    def test_step_pins_use_the_alternate_test_gpio(self) -> None:
+        self.assertEqual(MOTOR_1_STEP_BCM, 5)
+        self.assertEqual(MOTOR_2_STEP_BCM, 6)
+
     def test_drivers_start_and_finish_disabled(self) -> None:
         outputs = {}
         sleeps = []

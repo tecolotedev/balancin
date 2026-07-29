@@ -60,6 +60,12 @@ def stabilize() -> None:
                         )
                         previous_update = now
                         if correction is not None:
+                            print(
+                                "correction: sensor error="
+                                f"{data.acceleration_x_g:+.3f} g, "
+                                f"direction={correction.direction.name}, "
+                                f"steps={correction.steps}"
+                            )
                             motors.rotate_both(correction)
 
                     stop_requested.wait(CONTROL_LOOP_DELAY_SECONDS)

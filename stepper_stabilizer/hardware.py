@@ -11,10 +11,10 @@ from .imu import ImuData, OrientationFilter, SensorModel, decode_measurement
 
 
 # BCM GPIO numbering (not physical header pin numbers).
-MOTOR_1_STEP_BCM = 17
+MOTOR_1_STEP_BCM = 5
 MOTOR_1_DIR_BCM = 27
 MOTOR_1_ENABLE_BCM = 22
-MOTOR_2_STEP_BCM = 23
+MOTOR_2_STEP_BCM = 6
 MOTOR_2_DIR_BCM = 24
 MOTOR_2_ENABLE_BCM = 25
 
