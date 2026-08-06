@@ -30,3 +30,17 @@ the STEP output for motor 1.
 
 Use 3.3 V for the sensor and I2C signals. Leave `INT`, `XDA`, and `XCL`
 disconnected for this basic example.
+
+## Shared motor-driver signals
+
+Use only three ESP32 outputs for both DRV8825 boards:
+
+| ESP32 | DRV8825 #1 | DRV8825 #2 |
+|---|---|---|
+| GPIO 22 | STEP | STEP |
+| GPIO 23 | DIR | DIR |
+| GPIO 25 | EN | EN |
+
+Add a 10 kΩ pull-up from the shared EN signal to 3.3 V. The old Motor 2 pins
+(GPIO 18, GPIO 19, and GPIO 26) are no longer used. Do not connect them to the
+shared signals because two GPIO outputs must never be tied together.

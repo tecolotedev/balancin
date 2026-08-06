@@ -3,13 +3,10 @@
 #include "MotorControl.h"
 
 
-constexpr int MOTOR1_STEP_PIN = 22;
-constexpr int MOTOR1_DIR_PIN = 23;
-constexpr int MOTOR1_ENABLE_PIN = 25;
-
-constexpr int MOTOR2_STEP_PIN = 18;
-constexpr int MOTOR2_DIR_PIN = 19;
-constexpr int MOTOR2_ENABLE_PIN = 26;
+// Each ESP32 output connects to the matching input on both DRV8825 boards.
+constexpr int MOTOR_STEP_PIN = 22;
+constexpr int MOTOR_DIR_PIN = 23;
+constexpr int MOTOR_ENABLE_PIN = 25;
 
 // DRV8825 EN is active LOW.
 constexpr int DRIVER_ENABLED = LOW;
@@ -25,43 +22,32 @@ void rotateBothMotors(
 
 
   // Enable both motors
-  digitalWrite(MOTOR1_ENABLE_PIN, DRIVER_ENABLED);
-  digitalWrite(MOTOR2_ENABLE_PIN, DRIVER_ENABLED);
+  digitalWrite(MOTOR_ENABLE_PIN, DRIVER_ENABLED);
 
   // Both drivers receive the same direction command.
-  digitalWrite(MOTOR1_DIR_PIN, direction);
-  digitalWrite(MOTOR2_DIR_PIN, direction);
+  digitalWrite(MOTOR_DIR_PIN, direction);
   delayMicroseconds(5);
 
   for (int step = 0; step < steps; step++) {
-    digitalWrite(MOTOR1_STEP_PIN, HIGH);
-    digitalWrite(MOTOR2_STEP_PIN, HIGH);
+    digitalWrite(MOTOR_STEP_PIN, HIGH);
     delayMicroseconds(10);  // Higher values produce a slower speed.
 
-    digitalWrite(MOTOR1_STEP_PIN, LOW);
-    digitalWrite(MOTOR2_STEP_PIN, LOW);
+    digitalWrite(MOTOR_STEP_PIN, LOW);
     delayMicroseconds(lowDelayMicroseconds);
   }
 
   // Disable both motors
-  digitalWrite(MOTOR1_ENABLE_PIN, DRIVER_DISABLED);
-  digitalWrite(MOTOR2_ENABLE_PIN, DRIVER_DISABLED);
+  digitalWrite(MOTOR_ENABLE_PIN, DRIVER_DISABLED);
 }
 
 
 void setupMotors() {
-  pinMode(MOTOR1_STEP_PIN, OUTPUT);
-  pinMode(MOTOR1_DIR_PIN, OUTPUT);
-  pinMode(MOTOR1_ENABLE_PIN, OUTPUT);
+  pinMode(MOTOR_STEP_PIN, OUTPUT);
+  pinMode(MOTOR_DIR_PIN, OUTPUT);
+  pinMode(MOTOR_ENABLE_PIN, OUTPUT);
 
-  pinMode(MOTOR2_STEP_PIN, OUTPUT);
-  pinMode(MOTOR2_DIR_PIN, OUTPUT);
-  pinMode(MOTOR2_ENABLE_PIN, OUTPUT);
-
-  digitalWrite(MOTOR1_STEP_PIN, LOW);
-  digitalWrite(MOTOR2_STEP_PIN, LOW);
+  digitalWrite(MOTOR_STEP_PIN, LOW);
 
   // Start with both drivers disabled.
-  digitalWrite(MOTOR1_ENABLE_PIN, DRIVER_DISABLED);
-  digitalWrite(MOTOR2_ENABLE_PIN, DRIVER_DISABLED);
+  digitalWrite(MOTOR_ENABLE_PIN, DRIVER_DISABLED);
 }

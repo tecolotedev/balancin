@@ -16,7 +16,7 @@ original Arduino sketch remains in `sketch_jun26a/` as a reference.
 - Separate motor power supply sized for the motors
 - At least 47 µF (100 µF recommended) electrolytic capacitor at each DRV8825,
   placed between VMOT and GND near the carrier
-- 2 × 10 kΩ resistors for pull-ups on the DRV8825 EN inputs
+- 1 × 10 kΩ resistor for a pull-up on the shared DRV8825 EN signal
 
 ### Raspberry Pi pin map
 
@@ -27,12 +27,9 @@ numbers.
 |---|---:|---:|---|
 | I²C SDA | 2 | 3 | IMU SDA |
 | I²C SCL | 3 | 5 | IMU SCL |
-| Motor 1 STEP | 5 | 29 | DRV8825 #1 STEP |
-| Motor 1 DIR | 27 | 13 | DRV8825 #1 DIR |
-| Motor 1 EN | 22 | 15 | DRV8825 #1 EN |
-| Motor 2 STEP | 6 | 31 | DRV8825 #2 STEP |
-| Motor 2 DIR | 24 | 18 | DRV8825 #2 DIR |
-| Motor 2 EN | 25 | 22 | DRV8825 #2 EN |
+| Shared STEP | 5 | 29 | STEP on both DRV8825 boards |
+| Shared DIR | 27 | 13 | DIR on both DRV8825 boards |
+| Shared EN | 22 | 15 | EN on both DRV8825 boards |
 | 3.3 V | — | 1 or 17 | IMU VCC; DRV8825 RESET/SLEEP |
 | Ground | — | 6, 9, 14, etc. | IMU, both drivers, motor PSU ground |
 
@@ -43,8 +40,9 @@ detects either address and identifies an MPU6050 (`WHO_AM_I=0x68`) or MPU6500
 For each DRV8825:
 
 1. Join RESET and SLEEP and pull them up to 3.3 V.
-2. Add a 10 kΩ resistor from EN to 3.3 V. EN is active-low; the resistor keeps
-   the driver disabled while the Pi boots or after the program releases GPIO.
+2. Join both EN inputs and add a 10 kΩ resistor from this shared signal to
+   3.3 V. EN is active-low; the resistor keeps both drivers disabled while the
+   Pi boots or after the program releases GPIO.
 3. Ground M0, M1, and M2 for full-step mode, or set the desired microstepping.
    The correction step counts are inherited from the original setup.
 4. Connect VMOT only to the external motor supply, with the bulk capacitor
@@ -52,7 +50,11 @@ For each DRV8825:
 5. Connect the motor-supply ground, both driver grounds, and Pi ground
    together. Never connect 5 V to a Pi GPIO.
 
-Both DIR outputs receive the same level, matching the ESP32 sketch. If the
+Connect BCM GPIO 5 to both STEP inputs, BCM GPIO 27 to both DIR inputs, and BCM
+GPIO 22 to both EN inputs. Do not leave the former Motor 2 GPIO outputs attached
+to these shared signals; two GPIO outputs must never be wired together.
+
+Both drivers receive the same DIR level. If the
 mechanism requires opposite physical motor rotation, reverse one motor coil
 pair or change the direction handling in
 `stepper_stabilizer/hardware.py`.
@@ -122,9 +124,9 @@ The test moves both motors 200 steps forward, pauses for one second, then moves
 them 200 steps in reverse. Press Ctrl-C to stop; the drivers are disabled when
 the test exits.
 
-Press Ctrl-C to stop. SIGINT and SIGTERM are handled so both EN pins are driven
-high before exit. The program stops after 10 consecutive IMU read errors
-instead of continuing with stale data.
+Press Ctrl-C to stop. SIGINT and SIGTERM are handled so the shared EN signal is
+driven high before exit, disabling both drivers. The program stops after 10
+consecutive IMU read errors instead of continuing with stale data.
 
 The program finds the Pi 5 header chip by its `pinctrl-rp1` label, so it works
 whether the kernel exposes it as `/dev/gpiochip0` or `/dev/gpiochip4`. If

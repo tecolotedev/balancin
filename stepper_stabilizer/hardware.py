@@ -10,13 +10,11 @@ from .controller import Correction, Direction
 from .imu import ImuData, OrientationFilter, SensorModel, decode_measurement
 
 
-# BCM GPIO numbering (not physical header pin numbers).
-MOTOR_1_STEP_BCM = 5
-MOTOR_1_DIR_BCM = 27
-MOTOR_1_ENABLE_BCM = 22
-MOTOR_2_STEP_BCM = 6
-MOTOR_2_DIR_BCM = 24
-MOTOR_2_ENABLE_BCM = 25
+# BCM GPIO numbering (not physical header pin numbers). Each signal fans out
+# to the matching input on both DRV8825 boards.
+MOTOR_STEP_BCM = 5
+MOTOR_DIR_BCM = 27
+MOTOR_ENABLE_BCM = 22
 
 I2C_BUS = 1
 IMU_ADDRESSES = (0x68, 0x69)
@@ -253,7 +251,7 @@ class _LgpioOutput:
 
 
 class Motors(AbstractContextManager["Motors"]):
-    """Own and safely operate both DRV8825 GPIO groups."""
+    """Operate two DRV8825 drivers through three shared GPIO signals."""
 
     def __init__(
         self,
@@ -282,12 +280,9 @@ class Motors(AbstractContextManager["Motors"]):
         try:
             # DRV8825 EN is active-low. Claim EN first in the disabled HIGH
             # state so no step input can energize a motor during startup.
-            self._enable_1 = create(MOTOR_1_ENABLE_BCM, True)
-            self._enable_2 = create(MOTOR_2_ENABLE_BCM, True)
-            self._step_1 = create(MOTOR_1_STEP_BCM, False)
-            self._direction_1 = create(MOTOR_1_DIR_BCM, False)
-            self._step_2 = create(MOTOR_2_STEP_BCM, False)
-            self._direction_2 = create(MOTOR_2_DIR_BCM, False)
+            self._enable = create(MOTOR_ENABLE_BCM, True)
+            self._step = create(MOTOR_STEP_BCM, False)
+            self._direction = create(MOTOR_DIR_BCM, False)
         except Exception:
             for output in reversed(created):
                 try:
@@ -308,22 +303,17 @@ class Motors(AbstractContextManager["Motors"]):
             return
 
         if correction.direction is Direction.FORWARD:
-            self._direction_1.on()
-            self._direction_2.on()
+            self._direction.on()
         else:
-            self._direction_1.off()
-            self._direction_2.off()
+            self._direction.off()
         self._sleep(DRIVER_DIRECTION_SETUP_SECONDS)
 
         try:
-            self._enable_1.off()
-            self._enable_2.off()
+            self._enable.off()
             for _ in range(correction.steps):
-                self._step_1.on()
-                self._step_2.on()
+                self._step.on()
                 self._sleep(DRIVER_STEP_HIGH_SECONDS)
-                self._step_1.off()
-                self._step_2.off()
+                self._step.off()
                 self._sleep(correction.low_delay_seconds)
         finally:
             self.disable()
@@ -333,13 +323,11 @@ class Motors(AbstractContextManager["Motors"]):
             return
 
         first_error: Optional[Exception] = None
-        # Disable both drivers before changing STEP. Attempt every output even
-        # if one GPIO operation fails.
+        # The shared active-low EN disables both drivers. Still force STEP low
+        # even if changing EN fails.
         for action in (
-            self._enable_1.on,
-            self._enable_2.on,
-            self._step_1.off,
-            self._step_2.off,
+            self._enable.on,
+            self._step.off,
         ):
             try:
                 action()
@@ -361,12 +349,9 @@ class Motors(AbstractContextManager["Motors"]):
             first_error = error
 
         for output in (
-            self._direction_2,
-            self._step_2,
-            self._direction_1,
-            self._step_1,
-            self._enable_2,
-            self._enable_1,
+            self._direction,
+            self._step,
+            self._enable,
         ):
             try:
                 output.close()

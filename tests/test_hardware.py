@@ -8,10 +8,9 @@ from stepper_stabilizer.controller import Correction, Direction
 from stepper_stabilizer.hardware import (
     DRIVER_DIRECTION_SETUP_SECONDS,
     DRIVER_STEP_HIGH_SECONDS,
-    MOTOR_1_ENABLE_BCM,
-    MOTOR_1_STEP_BCM,
-    MOTOR_2_ENABLE_BCM,
-    MOTOR_2_STEP_BCM,
+    MOTOR_DIR_BCM,
+    MOTOR_ENABLE_BCM,
+    MOTOR_STEP_BCM,
     Motors,
     _LgpioChip,
     _find_header_gpiochip,
@@ -135,9 +134,10 @@ class LgpioAdapterTests(unittest.TestCase):
 
 
 class MotorTests(unittest.TestCase):
-    def test_step_pins_use_the_alternate_test_gpio(self) -> None:
-        self.assertEqual(MOTOR_1_STEP_BCM, 5)
-        self.assertEqual(MOTOR_2_STEP_BCM, 6)
+    def test_shared_signals_use_three_gpio_outputs(self) -> None:
+        self.assertEqual(MOTOR_STEP_BCM, 5)
+        self.assertEqual(MOTOR_DIR_BCM, 27)
+        self.assertEqual(MOTOR_ENABLE_BCM, 22)
 
     def test_drivers_start_and_finish_disabled(self) -> None:
         outputs = {}
@@ -149,8 +149,11 @@ class MotorTests(unittest.TestCase):
             return output
 
         motors = Motors(output_factory=factory, sleeper=sleeps.append)
-        self.assertTrue(outputs[MOTOR_1_ENABLE_BCM].value)
-        self.assertTrue(outputs[MOTOR_2_ENABLE_BCM].value)
+        self.assertEqual(
+            set(outputs),
+            {MOTOR_STEP_BCM, MOTOR_DIR_BCM, MOTOR_ENABLE_BCM},
+        )
+        self.assertTrue(outputs[MOTOR_ENABLE_BCM].value)
 
         motors.rotate_both(
             Correction(
@@ -160,8 +163,7 @@ class MotorTests(unittest.TestCase):
             )
         )
 
-        self.assertTrue(outputs[MOTOR_1_ENABLE_BCM].value)
-        self.assertTrue(outputs[MOTOR_2_ENABLE_BCM].value)
+        self.assertTrue(outputs[MOTOR_ENABLE_BCM].value)
         self.assertEqual(
             sleeps,
             [
@@ -176,7 +178,7 @@ class MotorTests(unittest.TestCase):
         motors.close()
         self.assertTrue(all(output.closed for output in outputs.values()))
 
-    def test_partial_enable_failure_disables_both_drivers(self) -> None:
+    def test_enable_failure_still_leaves_step_low(self) -> None:
         outputs = {}
 
         def factory(pin: int, **kwargs: bool) -> FakeOutput:
@@ -185,7 +187,7 @@ class MotorTests(unittest.TestCase):
             return output
 
         motors = Motors(output_factory=factory, sleeper=lambda _: None)
-        outputs[MOTOR_2_ENABLE_BCM].fail_next_off = True
+        outputs[MOTOR_ENABLE_BCM].fail_next_off = True
 
         with self.assertRaises(OSError):
             motors.rotate_both(
@@ -196,8 +198,8 @@ class MotorTests(unittest.TestCase):
                 )
             )
 
-        self.assertTrue(outputs[MOTOR_1_ENABLE_BCM].value)
-        self.assertTrue(outputs[MOTOR_2_ENABLE_BCM].value)
+        self.assertTrue(outputs[MOTOR_ENABLE_BCM].value)
+        self.assertFalse(outputs[MOTOR_STEP_BCM].value)
         motors.close()
 
 
