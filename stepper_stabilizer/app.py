@@ -14,8 +14,8 @@ from .hardware import Motors, MpuSensor
 
 CONTROL_LOOP_DELAY_SECONDS = 0.050
 MAX_CONSECUTIVE_READ_ERRORS = 10
-MOTOR_TEST_STEPS = 4000
-MOTOR_TEST_LOW_DELAY_SECONDS = 0.015
+MOTOR_TEST_STEPS = 2000
+MOTOR_TEST_LOW_DELAY_SECONDS = 0.030
 MOTOR_TEST_PAUSE_SECONDS = 1.0
 
 
@@ -135,7 +135,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--motor-test",
         action="store_true",
         help=(
-            "bypass the IMU and move both motors 4000 steps forward "
+            "bypass the IMU and move both motors 2000 steps forward "
             "and reverse"
         ),
     )
