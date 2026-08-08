@@ -44,7 +44,7 @@ class MotorTestTests(unittest.TestCase):
                 correction.low_delay_seconds
                 for correction in motors.corrections
             ],
-            [0.00375, 0.00375],
+            [0.001, 0.001],
         )
         sleep.assert_called_once_with(app.MOTOR_TEST_PAUSE_SECONDS)
 

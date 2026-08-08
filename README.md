@@ -120,7 +120,7 @@ and run:
 STEPPER_GPIOCHIP=4 python3 -m stepper_stabilizer --motor-test
 ```
 
-The test moves both motors 2000 steps forward at a 3.75 ms STEP low
+The test moves both motors 2000 steps forward at a 1 ms STEP low
 interval, pauses for one second, then moves them 2000 steps in reverse. Press
 Ctrl-C to stop; the drivers are disabled when the test exits.
 
