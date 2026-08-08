@@ -29,7 +29,7 @@ numbers.
 | I²C SCL | 3 | 5 | IMU SCL |
 | Shared STEP | 5 | 29 | STEP on both DRV8825 boards |
 | Shared DIR | 27 | 13 | DIR on both DRV8825 boards |
-| Shared EN | 22 | 15 | EN on both DRV8825 boards |
+| Shared EN | 17 | 11 | EN on both DRV8825 boards |
 | 3.3 V | — | 1 or 17 | IMU VCC; DRV8825 RESET/SLEEP |
 | Ground | — | 6, 9, 14, etc. | IMU, both drivers, motor PSU ground |
 
@@ -51,7 +51,7 @@ For each DRV8825:
    together. Never connect 5 V to a Pi GPIO.
 
 Connect BCM GPIO 5 to both STEP inputs, BCM GPIO 27 to both DIR inputs, and BCM
-GPIO 22 to both EN inputs. Do not leave the former Motor 2 GPIO outputs attached
+GPIO 17 to both EN inputs. Do not leave the former Motor 2 GPIO outputs attached
 to these shared signals; two GPIO outputs must never be wired together.
 
 Both drivers receive the same DIR level. If the

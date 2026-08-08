@@ -137,7 +137,7 @@ class MotorTests(unittest.TestCase):
     def test_shared_signals_use_three_gpio_outputs(self) -> None:
         self.assertEqual(MOTOR_STEP_BCM, 5)
         self.assertEqual(MOTOR_DIR_BCM, 27)
-        self.assertEqual(MOTOR_ENABLE_BCM, 22)
+        self.assertEqual(MOTOR_ENABLE_BCM, 17)
 
     def test_drivers_start_and_finish_disabled(self) -> None:
         outputs = {}

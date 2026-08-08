@@ -14,7 +14,7 @@ from .imu import ImuData, OrientationFilter, SensorModel, decode_measurement
 # to the matching input on both DRV8825 boards.
 MOTOR_STEP_BCM = 5
 MOTOR_DIR_BCM = 27
-MOTOR_ENABLE_BCM = 22
+MOTOR_ENABLE_BCM = 17
 
 I2C_BUS = 1
 IMU_ADDRESSES = (0x68, 0x69)
