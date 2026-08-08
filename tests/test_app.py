@@ -37,7 +37,14 @@ class MotorTestTests(unittest.TestCase):
         )
         self.assertEqual(
             [correction.steps for correction in motors.corrections],
-            [app.MOTOR_TEST_STEPS, app.MOTOR_TEST_STEPS],
+            [4000, 4000],
+        )
+        self.assertEqual(
+            [
+                correction.low_delay_seconds
+                for correction in motors.corrections
+            ],
+            [0.015, 0.015],
         )
         sleep.assert_called_once_with(app.MOTOR_TEST_PAUSE_SECONDS)
 

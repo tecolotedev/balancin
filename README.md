@@ -120,9 +120,9 @@ and run:
 STEPPER_GPIOCHIP=4 python3 -m stepper_stabilizer --motor-test
 ```
 
-The test moves both motors 200 steps forward, pauses for one second, then moves
-them 200 steps in reverse. Press Ctrl-C to stop; the drivers are disabled when
-the test exits.
+The test moves both motors 4000 steps forward at the slower 15 ms STEP low
+interval, pauses for one second, then moves them 4000 steps in reverse. Press
+Ctrl-C to stop; the drivers are disabled when the test exits.
 
 Press Ctrl-C to stop. SIGINT and SIGTERM are handled so the shared EN signal is
 driven high before exit, disabling both drivers. The program stops after 10
